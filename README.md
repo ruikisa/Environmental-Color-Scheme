@@ -10,5 +10,7 @@ This thesis builds a workflow of color picking and color scheme, that consist of
 
 
 Demo
+
 Photoshop Script / https://vimeo.com/157845162
+
 Google map / http://codepen.io/kira15/pen/yYvmmM/
