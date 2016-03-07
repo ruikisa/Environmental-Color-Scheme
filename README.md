@@ -9,6 +9,7 @@ Color Scheme (ECS). ECS is a type of Dynamic Color Scheme (DCS) and Personalized
 This thesis builds a workflow of color picking and color scheme, that consist of obtaining environmental samples, toolkit, image processing and visualization. Moreover, the process links several software and platforms, including Photoshop and Google Maps by scripting, so that users can easily and effectively collect valid and substantial environmental color samples. In addition, the color analysis of environment is going to help us on design or planning orders to reach the basic situation of the surrounding.
 
 
+
 Demo
 
 Photoshop Script / https://vimeo.com/157845162
