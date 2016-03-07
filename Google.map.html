@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html> 
+<head> 
+  <div id="canvas-map"></div>
+  <style>
+html, body, #canvas-map {
+  width:100%;
+  height:100%;
+  background:#333;
+  
+}
+a {color:red;}
+a:hover {color:#f1f1f1;}
+.infobox {
+  background: none repeat scroll 0 0 #212121;
+  color: #F1F1F1;
+  font-family: arial;
+  line-height: 20px;
+  position: absolute;
+}
+.infobox:before, .infobox:after {
+  border-color: transparent transparent transparent #212121;
+  border-style: solid;
+  border-width: 20px 20px 0;
+  bottom: -1px;
+  content: "";
+  display: block;
+  height: 0;
+  left: -1px;
+  position: absolute;
+  width: 0;
+  z-index:0
+}
+.infobox:after {
+  border-color: transparent transparent transparent #FFFFFF;
+  border-width:24px 24px 0;
+  z-index:1
+}
+.infobox .close {
+background: none repeat scroll 0 0 #212121;
+cursor: pointer;
+float: right;
+font-size: 17px;
+height: 25px;
+line-height: 22px;
+position: relative;
+right: -25px;
+text-align: center;
+top: 0;
+width: 25px;
+}
+
+.infobox .content {
+  margin:15px 15px 15px 15px;
+}
+
+    </style>
+
+</head> 
+<body>
+  <div id="canvas-map"></div>
+  
+  <script>
+var usRoadMapType = new google.maps.StyledMapType([
+      {
+        featureType: 'all',
+        elementType: 'all',
+        stylers: [
+          {invert_lightness: 'true'},        
+          {hue: '#435158'},
+          {saturation: 20},
+          {lightness: 30},         
+          {gamma: 0.5}
+        ]
+      }
+    ], {name: 'Dark Style'});  
+
+function InfoBox(opts) {
+    google.maps.OverlayView.call(this);
+    this.latlng_ = opts.latlng;
+    this.map_ = opts.map;
+    this.content = opts.content;
+    this.offsetVertical_ = -350;
+    this.offsetHorizontal_ = 17;
+    this.height_ = 315;
+    this.width_ = 540;
+    var me = this;
+    this.boundsChangedListener_ =
+        google.maps.event.addListener(this.map_, "bounds_changed", function () {
+            return me.panMap.apply(me);
+        });
+    // Once the properties of this OverlayView are initialized, set its map so
+    // that we can display it. This will trigger calls to panes_changed and
+    // draw.
+    this.setMap(this.map_);
+}
+/* InfoBox extends GOverlay class from the Google Maps API
+ */
+InfoBox.prototype = new google.maps.OverlayView();
+/* Creates the DIV representing this InfoBox
+ */
+InfoBox.prototype.remove = function () {
+    if (this.div_) {
+        this.div_.parentNode.removeChild(this.div_);
+        this.div_ = null;
+    }
+};
+/* Redraw the Bar based on the current projection and zoom level
+ */
+InfoBox.prototype.draw = function () {
+    // Creates the element if it doesn't exist already.
+    this.createElement();
+    if (!this.div_) return;
+    // Calculate the DIV coordinates of two opposite corners of our bounds to
+    // get the size and position of our Bar
+    var pixPosition = this.getProjection().fromLatLngToDivPixel(this.latlng_);
+    if (!pixPosition) return;
+    // Now position our DIV based on the DIV coordinates of our bounds
+    this.div_.style.width = this.width_ + "px";
+    this.div_.style.left = (pixPosition.x + this.offsetHorizontal_) + "px";
+    this.div_.style.height = this.height_ + "px";
+    this.div_.style.top = (pixPosition.y + this.offsetVertical_) + "px";
+    this.div_.style.display = 'block';
+};
+/* Creates the DIV representing this InfoBox in the floatPane. If the panes
+ * object, retrieved by calling getPanes, is null, remove the element from the
+ * DOM. If the div exists, but its parent is not the floatPane, move the div
+ * to the new pane.
+ * Called from within draw. Alternatively, this can be called specifically on
+ * a panes_changed event.
+ */
+InfoBox.prototype.createElement = function () {
+    var panes = this.getPanes();
+    var div = this.div_;
+    if (!div) {
+        // This does not handle changing panes. You can set the map to be null and
+        // then reset the map to move the div.
+        div = this.div_ = document.createElement("div");
+            div.className = "infobox"
+        var contentDiv = document.createElement("div");
+            contentDiv.className = "content"
+            contentDiv.innerHTML = this.content;
+        var closeBox = document.createElement("div");
+            closeBox.className = "close";
+            closeBox.innerHTML = "x";
+        div.appendChild(closeBox);
+
+        function removeInfoBox(ib) {
+            return function () {
+                ib.setMap(null);
+            };
+        }
+        google.maps.event.addDomListener(closeBox, 'click', removeInfoBox(this));
+        div.appendChild(contentDiv);
+        div.style.display = 'none';
+        panes.floatPane.appendChild(div);
+        this.panMap();
+    } else if (div.parentNode != panes.floatPane) {
+        // The panes have changed. Move the div.
+        div.parentNode.removeChild(div);
+        panes.floatPane.appendChild(div);
+    } else {
+        // The panes have not changed, so no need to create or move the div.
+    }
+}
+/* Pan the map to fit the InfoBox.
+ */
+InfoBox.prototype.panMap = function () {
+    // if we go beyond map, pan map
+    var map = this.map_;
+    var bounds = map.getBounds();
+    if (!bounds) return;
+    // The position of the infowindow
+    var position = this.latlng_;
+    // The dimension of the infowindow
+    var iwWidth = this.width_;
+    var iwHeight = this.height_;
+    // The offset position of the infowindow
+    var iwOffsetX = this.offsetHorizontal_;
+    var iwOffsetY = this.offsetVertical_;
+    // Padding on the infowindow
+    var padX = 40;
+    var padY = 40;
+    // The degrees per pixel
+    var mapDiv = map.getDiv();
+    var mapWidth = mapDiv.offsetWidth;
+    var mapHeight = mapDiv.offsetHeight;
+    var boundsSpan = bounds.toSpan();
+    var longSpan = boundsSpan.lng();
+    var latSpan = boundsSpan.lat();
+    var degPixelX = longSpan / mapWidth;
+    var degPixelY = latSpan / mapHeight;
+    // The bounds of the map
+    var mapWestLng = bounds.getSouthWest().lng();
+    var mapEastLng = bounds.getNorthEast().lng();
+    var mapNorthLat = bounds.getNorthEast().lat();
+    var mapSouthLat = bounds.getSouthWest().lat();
+    // The bounds of the infowindow
+    var iwWestLng = position.lng() + (iwOffsetX - padX) * degPixelX;
+    var iwEastLng = position.lng() + (iwOffsetX + iwWidth + padX) * degPixelX;
+    var iwNorthLat = position.lat() - (iwOffsetY - padY) * degPixelY;
+    var iwSouthLat = position.lat() - (iwOffsetY + iwHeight + padY) * degPixelY;
+    // calculate center shift
+    var shiftLng =
+        (iwWestLng < mapWestLng ? mapWestLng - iwWestLng : 0) +
+        (iwEastLng > mapEastLng ? mapEastLng - iwEastLng : 0);
+    var shiftLat =
+        (iwNorthLat > mapNorthLat ? mapNorthLat - iwNorthLat : 0) +
+        (iwSouthLat < mapSouthLat ? mapSouthLat - iwSouthLat : 0);
+    // The center of the map
+    var center = map.getCenter();
+    // The new map center
+    var centerX = center.lng() - shiftLng;
+    var centerY = center.lat() - shiftLat;
+    // center the map to the new shifted center
+    map.setCenter(new google.maps.LatLng(centerY, centerX));
+    // Remove the listener after panning is complete.
+    google.maps.event.removeListener(this.boundsChangedListener_);
+    this.boundsChangedListener_ = null;
+};
+
+function initialize() {
+    var markers = []; // makers array
+  
+    /*var myOptions = { // map settings
+        zoom: 20,
+        center: new google.maps.LatLng(24.789382, 121.000370),
+        mapTypeId: google.maps.MapTypeId.ROADMAP,
+        sensor: 'true'
+    }*/
+
+    var usRoadMapType = new google.maps.StyledMapType([
+      {
+        featureType: 'all',
+        elementType: 'all',
+        stylers: [
+          {invert_lightness: 'true'},        
+          {hue: '#435158'},
+          {saturation: 20},
+          {lightness: 30},         
+          {gamma: 0.5}
+        ]
+      }
+    ], {name: 'Dark Style'}); 
+  
+  function CoordMapType(tileSize) {
+  this.tileSize = tileSize;
+}
+
+CoordMapType.prototype.getTile = function(coord, zoom, ownerDocument) {
+  var div = ownerDocument.createElement('div');
+  div.innerHTML = coord;
+  div.style.width = this.tileSize.width + 'px';
+  div.style.height = this.tileSize.height + 'px';
+  div.style.fontSize = '30';
+  div.style.borderStyle = 'dotted';
+  div.style.borderWidth = '1px';
+  div.style.borderColor = '#009393';
+  return div;
+};
+
+    var map = new google.maps.Map(document.getElementById("canvas-map"),{
+    zoom: 17,
+    center: new google.maps.LatLng(24.789382, 121.000370),
+    mapTypeControlOptions: {
+      position: google.maps.ControlPosition.TOP_LEFT,
+      mapTypeIds: [google.maps.MapTypeId.ROADMAP,
+        google.maps.MapTypeId.SATELLITE, google.maps.MapTypeId.HYBRID,
+        google.maps.MapTypeId.TERRAIN, 'usroadatlas']
+    },  
+    zoomControlOptions: {
+        position: google.maps.ControlPosition.LEFT_TOP
+    },
+    streetViewControlOptions: {
+        position: google.maps.ControlPosition.LEFT_TOP
+    }
+  });
+
+    map.mapTypes.set('usroadatlas', usRoadMapType);
+    map.setMapTypeId('usroadatlas');
+  
+  map.overlayMapTypes.insertAt(
+      0, new CoordMapType(new google.maps.Size(256, 256)));
+  
+    var data = [ // map data
+      {
+        'id':1,
+        'content':'<h1>3</h1><img src="https://lh3.googleusercontent.com/-HvNwe9tHMsE/VjIiYzLMa8I/AAAAAAAAB0o/F2rAaOPYfcs/s1280-Ic42/3.JPG" width="508" height="159"/><br><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(178,21,255);"></canvas><p>R:178<p>G:21<p>B:255</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(0,8,16);"></canvas><p>R:0<p>G:8<p>B:16</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(69,80,92);"></canvas><p>R:69<p>G:80<p>B:92</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(50,63,66);"></canvas><p>R:50<p>G:63<p>B:66</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(155,167,174);"></canvas><p>R:155<p>G:167<p>B:174</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(49,70,94);"></canvas><p>R:49<p>G:70<p>B:94</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(107,86,62);"></canvas><p>R:107<p>G:86<p>B:62</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(96,76,60);"></canvas><p>R:96<p>G:76<p>B:60</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(39,39,36);"></canvas><p>R:39<p>G:39<p>B:36</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(2,5,2);"></canvas><p>R:2<p>G:5<p>B:2</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(103,88,66);"></canvas><p>R:103<p>G:88<p>B:66</div><div style="float:left"><canvas width="35" height="35" style="background-color:rgb(112,92,91);"></canvas><p>R:112<p>G:92<p>B:91</div>',
+        'icon':'https://lh3.googleusercontent.com/-X3mti8NWS0s/VjIh3mtDB0I/AAAAAAAAB0I/FPoZ8Bb5an8/s60-Ic42/3.png',
+        'position': {
+          'lat':24.788164,
+          'lng':121.001122
+         }
+      },
+      {
+        'id':2,
+        'content':'<h1>4</h1><img src="https://lh3.googleusercontent.com/-2R8b4kmUBxs/VjIiY4VPBUI/AAAAAAAAB0g/D62ulrP0dBc/s512-Ic42/4.JPG" width="508" height="159"/><br><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(220,239,255);"></canvas><p>R:220<p>G:239<p>B:255</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(142,152,160);"></canvas><p>R:142<p>G:152<p>B:160</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(83,94,98);"></canvas><p>R:83<p>G:94<p>B:98</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(100,98,88);"></canvas><p>R:100<p>G:98<p>B:88</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(20,26,22);"></canvas><p>R:20<p>G:26<p>B:22</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(155,165,167);"></canvas><p>R:155<p>G:165<p>B:167</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(110,95,75);"></canvas><p>R:110<p>G:95<p>B:75</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(110,80,58);"></canvas><p>R:110<p>G:80<p>B:58</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(75,46,39);"></canvas><p>R:75<p>G:46<p>B:39</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(20,4,0);"></canvas><p>R:20<p>G:5<p>B:0</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(53,47,27);"></canvas><p>R:53<p>G:47<p>B:27</div><div style="float:left"><canvas width="35" height="35" style="background-color:rgb(98,79,88);"></canvas><p>R:98<p>G:79<p>B:88</div>',
+        'icon':'https://lh3.googleusercontent.com/-C0UFsUS3nS8/VjIh3XAuiJI/AAAAAAAABz4/hw6Swh5Y-dM/s60-Ic42/4.png',
+        'position': {
+          'lat':24.786872,
+          'lng':121.001189
+         }
+      },
+      {
+        'id':3,
+        'content':'<h1>5</h1><img src="https://lh3.googleusercontent.com/-M64j6NoT9nY/VjIiYipzvmI/AAAAAAAAB0c/Oshi5Nan1iE/s1280-Ic42/5.JPG" width="508" height="159"/><br><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(253,253,254);"></canvas><p>R:253<p>G:253<p>B:254</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(4,3,15);"></canvas><p>R:4<p>G:3<p>B:15</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(147,152,157);"></canvas><p>R:147<p>G:152<p>B:157</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(92,104,121);"></canvas><p>R:92<p>G:104<p>B:121</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(89,99,116);"></canvas><p>R:89<p>G:99<p>B:116</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(95,102,105);"></canvas><p>R:95<p>G:102<p>B:105</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(85,80,82);"></canvas><p>R:85<p>G:80<p>B:82</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(134,122,120);"></canvas><p>R:134<p>G:122<p>B:120</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(94,95,110);"></canvas><p>R:94<p>G:95<p>B:110</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(99,101,108);"></canvas><p>R:99<p>G:101<p>B:108</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(0,7,0);"></canvas><p>R:0<p>G:7<p>B:0</div><div style="float:left"><canvas width="35" height="35" style="background-color:rgb(191,173,170);"></canvas><p>R:191<p>G:173<p>B:170</div>',
+        'icon':'https://lh3.googleusercontent.com/-w6ilTCF0oSg/VjIh3QVkMaI/AAAAAAAAB0A/vpyBT71bv3A/s60-Ic42/5.png',
+        'position': {
+          'lat':24.786292,
+          'lng':121.000497
+         }
+      },
+      {
+        'id':4,
+        'content':'<h1>6</h1><img src="https://lh3.googleusercontent.com/-qGfzakBVRWY/VjIiaBpnxNI/AAAAAAAAB0w/dIb1M59c-g8/s1280-Ic42/6.JPG" width="508" height="159"/><br><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(212,230,255);"></canvas><p>R:212<p>G:230<p>B:255</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(203,210,217);"></canvas><p>R:203<p>G:210<p>B:217</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(228,227,227);"></canvas><p>R:228<p>G:227<p>B:227</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(125,160,197);"></canvas><p>R:125<p>G:160<p>B:197</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(176,194,217);"></canvas><p>R:176<p>G:194<p>B:217</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(57,57,68);"></canvas><p>R:57<p>G:57<p>B:68</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(62,60,49);"></canvas><p>R:62<p>G:60<p>B:49</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(45,39,37);"></canvas><p>R:45<p>G:39<p>B:37</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(21,16,15);"></canvas><p>R:21<p>G:16<p>B:15</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(46,38,31);"></canvas><p>R:46<p>G:38<p>B:31</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(0,1,1);"></canvas><p>R:0<p>G:1<p>B:1</div><div style="float:left"><canvas width="35" height="35" style="background-color:rgb(88,65,51);"></canvas><p>R:88<p>G:65<p>B:51</div>',
+        'icon':'https://lh3.googleusercontent.com/-mfxEpJ_QP6M/VjIh4JH58iI/AAAAAAAAB0E/FULH_Nx0V1g/s60-Ic42/6.png',
+        'position': {
+          'lat':24.784164,
+          'lng':120.999686
+         }
+      },
+      {
+        'id':5,
+        'content':'<h1>7</h1><img src="https://lh3.googleusercontent.com/-ewSuTXFiUcU/VjIiafhJSVI/AAAAAAAAB00/lQYjeU-mUP8/s1280-Ic42/7.JPG" width="508" height="159"/><br><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(249,253,254);"></canvas><p>R:249<p>G:253<p>B:254</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(123,120,117);"></canvas><p>R:123<p>G:120<p>B:117</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(152,165,185);"></canvas><p>R:152<p>G:227<p>B:227</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(60,65,43);"></canvas><p>R:60<p>G:65<p>B:43</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(176,194,217);"></canvas><p>R:176<p>G:194<p>B:217</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(0,4,0);"></canvas><p>R:0<p>G:4<p>B:0</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(79,84,87);"></canvas><p>R:79<p>G:84<p>B:87</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(141,117,109);"></canvas><p>R:141<p>G:117<p>B:109</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(144,117,107);"></canvas><p>R:144<p>G:117<p>B:107</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(170,141,133);"></canvas><p>R:170<p>G:141<p>B:133</div><div style="float:left;width:43px"><canvas width="35" height="35" style="background-color:rgb(144,115,92);"></canvas><p>R:144<p>G:115<p>B:92</div><div style="float:left"><canvas width="35" height="35" style="background-color:rgb(192,154,161);"></canvas><p>R:192<p>G:154<p>B:161</div>',
+        'icon':'https://lh3.googleusercontent.com/-wl-PFY8nW70/VjIh4THlgLI/AAAAAAAAB0M/T-jwwLKgGOQ/s60-Ic42/7.png',
+        'position': {
+          'lat':24.784072,
+          'lng':120.998519
+         }
+      }
+    ]
+      
+    for (var i = 0; i < data.length; i++) {
+      var current = data[i];
+  
+      var marker = new google.maps.Marker({
+        position: new google.maps.LatLng(current.position.lat, current.position.lng),
+        icon: current.icon,
+        map: map,
+        content: current.content
+      });
+  
+      markers.push(marker);
+  
+      google.maps.event.addListener(markers[i], "click", function (e) {
+        var infoBox = new InfoBox({
+            latlng: this.getPosition(),
+            map: map,
+            content: this.content
+        });
+      });
+    }
+}
+
+jQuery(document).ready(function(){
+    initialize();
+});
+  </script>
+</body>
+</html>
